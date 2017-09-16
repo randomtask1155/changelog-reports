@@ -1,1 +1,7 @@
 drop
+pkg
+gather_changelogs
+gather_changelogs_amd64
+render_changelogs
+render_changelogs_amd64
+
