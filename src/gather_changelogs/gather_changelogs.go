@@ -12,9 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"regexp"
-	"os/user"
-	"syscall"
-	"strconv"
 )
 var (
 	//sudo -u tempest-web psql -U tempest-web -d tempest_production
@@ -94,7 +91,7 @@ func collect(outdir, outfile string) error {
 	log := ChangeLogs{}
 	tarfh, err := os.OpenFile(outfile, os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
-		return fmt.Errorf("Failed to open %s: %s", outfile, err)
+		return fmt.Errorf("%s", err)
 	}
 	tw := tar.NewWriter(tarfh)
 	defer tarfh.Close()
@@ -107,7 +104,6 @@ func collect(outdir, outfile string) error {
 	defer rows.Close()
 	for rows.Next() {
 		err = rows.Scan(&change.ID,
-		&change.Customer,
 		&change.Identifier,
 		&change.Label,
 		&change.GUID,
@@ -153,14 +149,17 @@ func collect(outdir, outfile string) error {
 			return fmt.Errorf("Row Scan Failed for logs: %s", err)
 		}
 		b := marshalStruct(log)
-		// TODO need to write this data out to tar file
 		err = tw.WriteHeader(&tar.Header{
-				Name: fmt.Sprintf("%d_%s_%s_changelog.txt", log.InstallID, log.CreatedAT, log.UpdatedAT), 
+				Name: fmt.Sprintf("%d_%d_%d_changelog.txt", log.InstallID, log.CreatedAT.Unix(), log.UpdatedAT.Unix()), 
 				Mode: 0666,
 				Size: int64(len(b)),
 			})
 		if err != nil {
-			return fmt.Errorf("Failed write tar header for changes:%d: %s", int64(len(changesData)), err)
+			return fmt.Errorf("Failed write tar header for log file:%d: %s", int64(len(b)), err)
+		}
+		_, err = tw.Write(b)
+		if err != nil {
+			return fmt.Errorf("Failed to write changes file to archive: %s", err)
 		}
 	}
 	return nil
@@ -171,22 +170,6 @@ func cleanCustomerName(n *string) {
 	re := regexp.MustCompile(`[a-z]|[0-9]`)
 	*n = strings.ToLower(*n)
 	*n = strings.Join(re.FindAllString(*n, -1), "")
-}
-
-func setUID() {
-	u, err := user.Lookup(PGUSER)
-	if err != nil {
-		panic(fmt.Sprintf("%s user lookup error: %s", PGUSER, err))
-	}
-	
-	uid, err := strconv.Atoi(u.Uid)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to convert uid %s to integer: %s", u.Uid, err))
-	}
-	err = syscall.Setuid(uid)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to change to user %s: %s", PGUSER, err))
-	}
 }
 
 func main(){
@@ -213,16 +196,14 @@ func main(){
 		fmt.Println("Warning customer name will default to ANONYMOUS unless you specify the name with -c option")
 	}
 	
-	//setuid to tempest-web for database access
-	setUID()
-	
-	DBURL = fmt.Sprintf("%s://%s@%s:%s/%s", OPSDBTYPE, PGUSER, PGHOST, PGPORT, PGDATABASE)
+	//DBURL = fmt.Sprintf("%s://%s@%s:%s/%s", OPSDBTYPE, PGUSER, PGHOST, PGPORT, PGDATABASE)
+	DBURL = fmt.Sprintf("%s:///%s?host=/var/run/postgresql/", OPSDBTYPE, PGDATABASE)
 	
 	cleanCustomerName(customer)
 	outfile := filepath.Join(*outputdir, fmt.Sprintf("%s_%s_opsman-changelogs.tar", *customer, envType))
 	err := collect(*outputdir, outfile)
 	if err != nil {
-		fmt.Printf("Failed to collect change logs: %s\n", err)
+		fmt.Printf("%s\n", err)
 		os.Exit(1)
 	}
 }
