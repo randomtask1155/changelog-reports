@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"regexp"
+	"os/exec"
 )
 var (
 	//sudo -u tempest-web psql -U tempest-web -d tempest_production
@@ -30,6 +31,14 @@ var (
 	OPSDBTYPE = "postgres"
 	// DBURL is the connection string used to establish database session
 	DBURL = ""
+	
+	//Collors
+	textColor = "\033[94m"
+	errorColor = "\033[91m"
+	warnColor = "\033[33m"
+	termColor = "\033[0m"
+	
+	gzipCMD = "gzip"
 	
 	changesLogQuery = `SELECT * FROM installation_changes`
 	changeLogDataQuery = `SELECT * from installation_logs`
@@ -172,6 +181,24 @@ func cleanCustomerName(n *string) {
 	*n = strings.Join(re.FindAllString(*n, -1), "")
 }
 
+func resolveCommands() {
+	var err error
+	gzipCMD, err = exec.LookPath(gzipCMD)
+	if err != nil {
+		panic(fmt.Sprintf("Problem with gzip command dependencies: %s", err))
+	}
+}
+
+func logError(s string){
+	fmt.Printf("~# %s%s%s\n", errorColor, s, termColor)
+}
+func logWarn(s string){
+	fmt.Printf("~# %s%s%s\n", warnColor, s, termColor)
+}
+func logInfo(s string){
+	fmt.Printf("~# %s%s%s\n", textColor, s, termColor)
+}
+
 func main(){
 	checkEnv(&PGHOST, "PGHOST")
 	checkEnv(&PGUSER, "PGUSER")
@@ -183,7 +210,7 @@ func main(){
 	
 	envType := ""
 	if ! *prodenv && ! *testenv {
-		fmt.Println("Please specify -p if this is a prod environment or -n if this is a non-prod environment")
+		logError("Please specify -p if this is a prod environment or -n if this is a non-prod environment")
 		os.Exit(2)
 	}
 	if *prodenv {
@@ -193,17 +220,27 @@ func main(){
 	}
 	
 	if *customer == "ANONYMOUS" {
-		fmt.Println("Warning customer name will default to ANONYMOUS unless you specify the name with -c option")
+		logWarn("Warning customer name will default to ANONYMOUS unless you specify the name with -c option")
 	}
 	
 	//DBURL = fmt.Sprintf("%s://%s@%s:%s/%s", OPSDBTYPE, PGUSER, PGHOST, PGPORT, PGDATABASE)
 	DBURL = fmt.Sprintf("%s:///%s?host=/var/run/postgresql/", OPSDBTYPE, PGDATABASE)
 	
 	cleanCustomerName(customer)
+	logInfo(fmt.Sprintf("Scrubbed customer name and will use %s", *customer))
 	outfile := filepath.Join(*outputdir, fmt.Sprintf("%s_%s_opsman-changelogs.tar", *customer, envType))
+	logInfo(fmt.Sprintf("Creating tar archive %s", outfile))
 	err := collect(*outputdir, outfile)
 	if err != nil {
-		fmt.Printf("%s\n", err)
+		logError(err.Error())
 		os.Exit(1)
 	}
+	
+	logInfo("Compressing archive")
+	out, err := exec.Command(gzipCMD, outfile).CombinedOutput()
+	if err != nil {
+		logError(fmt.Sprintf("Failed to Compress Archive %s: %s", out, err))
+		os.Exit(3)
+	}
+	logInfo(fmt.Sprintf("Successfully crated archive %s.gz", outfile))
 }
