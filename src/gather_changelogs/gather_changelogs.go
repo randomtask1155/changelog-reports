@@ -13,6 +13,7 @@ import (
 	"strings"
 	"regexp"
 	"os/exec"
+	"encoding/hex"
 )
 var (
 	//sudo -u tempest-web psql -U tempest-web -d tempest_production
@@ -41,7 +42,7 @@ var (
 	gzipCMD = "gzip"
 	
 	changesLogQuery = `SELECT * FROM installation_changes`
-	changeLogDataQuery = `SELECT * from installation_logs`
+	changeLogDataQuery = `SELECT id, created_at, updated_at, install_id, encode(text, 'hex') from installation_logs`
 
 	customer = flag.String("c", "ANONYMOUS", "Name of customer")
 	prodenv = flag.Bool("p", false, "Use this flag if this is a prod environemnt")
@@ -157,9 +158,13 @@ func collect(outdir, outfile string) error {
 		if err != nil {
 			return fmt.Errorf("Row Scan Failed for logs: %s", err)
 		}
-		b := marshalStruct(log)
+		//b := marshalStruct(log)
+		b, err := hex.DecodeString(fmt.Sprintf("%s", log.Log))
+		if err != nil {
+			return fmt.Errorf("Unable to decode hex log into []bytes: %s", err)
+		}
 		err = tw.WriteHeader(&tar.Header{
-				Name: fmt.Sprintf("%d_%d_%d_changelog.txt", log.InstallID, log.CreatedAT.Unix(), log.UpdatedAT.Unix()), 
+				Name: fmt.Sprintf("%d_%d_%d_%d_changelog.txt", log.ID, log.InstallID, log.CreatedAT.Unix(), log.UpdatedAT.Unix()), 
 				Mode: 0666,
 				Size: int64(len(b)),
 			})
