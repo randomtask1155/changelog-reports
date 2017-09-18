@@ -19,17 +19,17 @@ var (
 	//sudo -u tempest-web psql -U tempest-web -d tempest_production
 	
 	// PGHOST is the hostname of opsmanager 
-	PGHOST = "127.0.0.1"
+	PGHOST = "127.0.0.1" // TODO not used 
 	// PGUSER is the opsmanager database username
 	PGUSER = "tempest-web"
 	// PGDATABASE is the opsmanager database name
 	PGDATABASE = "tempest_production"
 	// PGPORT is the port for the opsman database
-	PGPORT = "5432"
+	PGPORT = "5432" // TODO  not used 
 	// PGPASS is optional and is the password for the opsmanager database user
 	PGPASS = ""
 	// OPSDBTYPE deafults to postgress but can be changed via environment variable too
-	OPSDBTYPE = "postgres"
+	OPSDBTYPE = "postgres" 
 	// DBURL is the connection string used to establish database session
 	DBURL = ""
 	
