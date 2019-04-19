@@ -41,7 +41,7 @@ var (
 	
 	gzipCMD = "gzip"
 	
-	changesLogQuery = `SELECT * FROM installation_changes`
+	changesLogQuery = `SELECT id, identifier, label, guid, product_version, install_id, change_type FROM installation_changes`
 	changeLogDataQuery = `SELECT id, created_at, updated_at, install_id, encode(text, 'hex') from installation_logs`
 
 	customer = flag.String("c", "ANONYMOUS", "Name of customer")
